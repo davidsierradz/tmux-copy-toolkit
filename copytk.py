@@ -397,15 +397,16 @@ def process_pane_capture_lines(data, nlines=None):
 
 	Returns:
 		An array of line strings.  Each line string corresponds to a single visible line such that
-		a wrapped line is returned as multiple visible lines.  Nonprintable characters are removed
-		and tabs are converted to spaces.
+		a wrapped line is returned as multiple visible lines.  Nonprintable characters are removed,
+		except whitespace like NBSP that still takes a cell, which becomes a space.  Tabs are converted
+		to spaces.
 	"""
 	# processes pane capture data into an array of lines
 	# also handles nonprintables
 	lines = [
 		''.join([
 			'        ' if c == '\t' else (
-				c if c.isprintable() else ''
+				c if c.isprintable() else (' ' if c.isspace() else '')
 			)
 			for c in line
 		])
@@ -418,7 +419,7 @@ def process_pane_capture_lines(data, nlines=None):
 def process_pane_capture_line(line):
 	return ''.join([
 		'        ' if c == '\t' else (
-			c if c.isprintable() else ''
+			c if c.isprintable() else (' ' if c.isspace() else '')
 		)
 		for c in line
 	])
