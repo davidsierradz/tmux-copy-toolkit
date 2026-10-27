@@ -540,6 +540,14 @@ def execute_copy(data):
 	command = os.path.expanduser(get_tmux_option('@copytk-copy-command', 'tmux load-buffer -'))
 	runshellcommand(command, sendstdin=data)
 	log('Copied data.')
+	if args.paste:
+		execute_paste(data)
+
+def execute_paste(data):
+	# Use a dedicated buffer so pasting doesn't depend on @copytk-copy-command
+	runtmux([ 'load-buffer', '-b', 'copytk-paste', '-' ], sendstdin=data)
+	runtmux([ 'paste-buffer', '-p', '-d', '-b', 'copytk-paste', '-t', args.t ])
+	log('Pasted data.')
 
 #n = 10000
 #ls = gen_em_labels(n)
@@ -1335,6 +1343,8 @@ def run_wrapper(main_action, args):
 		addopt('--search-nkeys', args.search_nkeys)
 	if args.search_direction:
 		addopt('--search-direction', args.search_direction)
+	if args.paste:
+		addopt('--paste')
 
 	cmd += f' "{main_action}"'
 	#cmd += ' 2>/tmp/tm_wrap_log'
@@ -1350,6 +1360,7 @@ argp = argparse.ArgumentParser(description='tmux pane utils')
 argp.add_argument('-t', help='target pane')
 argp.add_argument('--search-nkeys', help='number of characters to key in to search')
 argp.add_argument('--search-direction', help='direction to search from cursor, both|forward|reverse')
+argp.add_argument('--paste', action='store_true', help='also paste the copied text into the pane (easycopy, linecopy, quickcopy)')
 
 # internal args
 argp.add_argument('--run-internal', action='store_true')
