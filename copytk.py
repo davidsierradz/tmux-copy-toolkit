@@ -799,6 +799,14 @@ class EasyMotionAction(PaneJumpAction):
 				pos = r + len(srch) + min_match_spacing
 		return results
 
+	def _em_is_line_end(self, y):
+		"""Whether display line y ends a logical line, rather than wrapping onto the next display line."""
+		line = self.display_content_lines[y]
+		if len(line) == 0:
+			return True
+		idx = self.disp_copy_map[(len(line) - 1, y)]
+		return idx + 1 >= len(self.copy_data) or self.copy_data[idx + 1] == '\n'
+
 	def _em_input_search_chars(self):
 		search_str = ''
 		self.setstatus('INPUT CHAR')
@@ -823,6 +831,13 @@ class EasyMotionAction(PaneJumpAction):
 		log('\n'.join(pane_search_lines), 'pane_search_lines')
 
 		if action == 'search':
+			# Like leap.nvim, a space typed after the last character of a line matches the line end.
+			# Not for 1 key searches, where a lone space would match past the end of the line
+			if self.search_len > 1:
+				pane_search_lines = [
+					line + ' ' if self._em_is_line_end(y) else line
+					for y, line in enumerate(pane_search_lines)
+				]
 			search_str = self._em_input_search_chars()
 			return self._em_search_lines(
 				pane_search_lines,
@@ -924,7 +939,8 @@ class EasyCopyAction(EasyMotionAction):
 		if not pos2: return
 
 		# since typing last n letters of word, advance end position by n-1 (-1 because range is inclusive)
-		pos2 = (pos2[0] + self.search_len - 1, pos2[1])
+		# (but not past the end of the line, when the match used the line end space)
+		pos2 = (min(pos2[0] + self.search_len - 1, max(len(self.display_content_lines[pos2[1]]) - 1, 0)), pos2[1])
 
 		# Find the data associated with this range and run the copy command
 		selected_data = self.copy_data[self.disp_copy_map[pos1] : self.disp_copy_map[pos2] + 1]
