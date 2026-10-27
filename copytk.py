@@ -341,8 +341,11 @@ def move_tmux_cursor(pos, target, gotocopy=True): # (x, y)
 	runtmuxmulti(tmuxcmds)
 	# cursor-down restores a remembered column that top-line doesn't reset, so the cursor isn't
 	# necessarily at column 0 here.  start-of-line can't be used because it jumps to the start
-	# of a wrapped line, so move relative to the actual cursor column instead.
+	# of a wrapped line, so move relative to the actual cursor column instead.  copy_cursor_x
+	# counts cells but cursor-right/left move by characters, so count the characters before it.
 	cur_x = int(runtmux([ 'display-message', '-p', '-t', target, '#{copy_cursor_x}' ], one=True))
+	if cur_x > 0:
+		cur_x = len(runtmux([ 'display-message', '-p', '-t', target, '#{=' + str(cur_x) + ':copy_cursor_line}' ], one=True))
 	dx = pos[0] - cur_x
 	if dx > 0:
 		runtmux([ 'send-keys', '-X', '-t', target, '-N', str(dx), 'cursor-right' ])
