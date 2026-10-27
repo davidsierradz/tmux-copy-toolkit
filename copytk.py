@@ -338,10 +338,16 @@ def move_tmux_cursor(pos, target, gotocopy=True): # (x, y)
 	tmuxcmds.append([ 'send-keys', '-X', '-t', target, 'top-line' ])
 	if pos[1] > 0:
 		tmuxcmds.append([ 'send-keys', '-X', '-t', target, '-N', str(pos[1]), 'cursor-down' ])
-	#tmuxcmds.append([ 'send-keys', '-X', '-t', target, 'start-of-line' ]) # Was breaking when on a wrapped line
-	if pos[0] > 0:
-		tmuxcmds.append([ 'send-keys', '-X', '-t', target, '-N', str(pos[0]), 'cursor-right' ])
 	runtmuxmulti(tmuxcmds)
+	# cursor-down restores a remembered column that top-line doesn't reset, so the cursor isn't
+	# necessarily at column 0 here.  start-of-line can't be used because it jumps to the start
+	# of a wrapped line, so move relative to the actual cursor column instead.
+	cur_x = int(runtmux([ 'display-message', '-p', '-t', target, '#{copy_cursor_x}' ], one=True))
+	dx = pos[0] - cur_x
+	if dx > 0:
+		runtmux([ 'send-keys', '-X', '-t', target, '-N', str(dx), 'cursor-right' ])
+	elif dx < 0:
+		runtmux([ 'send-keys', '-X', '-t', target, '-N', str(-dx), 'cursor-left' ])
 
 def cleanup_internal_process():
 	if swap_count % 2 == 1:
