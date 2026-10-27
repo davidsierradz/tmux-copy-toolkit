@@ -831,11 +831,12 @@ class EasyMotionAction(PaneJumpAction):
 		log('\n'.join(pane_search_lines), 'pane_search_lines')
 
 		if action == 'search':
-			# Like leap.nvim, a space typed after the last character of a line matches the line end.
+			# Like leap.nvim, a space typed after the last character of a line matches the line end,
+			# and two spaces match an empty line.
 			# Not for 1 key searches, where a lone space would match past the end of the line
 			if self.search_len > 1:
 				pane_search_lines = [
-					line + ' ' if self._em_is_line_end(y) else line
+					'  ' if line == '' else line + ' ' if self._em_is_line_end(y) else line
 					for y, line in enumerate(pane_search_lines)
 				]
 			search_str = self._em_input_search_chars()
