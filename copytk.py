@@ -272,9 +272,14 @@ def get_pane_info(target=None, capture=False, capturej=False):
 		'scroll_position': int(r[11]) if r[11] != '' else None,
 		'mode': mode
 	}
+	# Copy mode shows a snapshot of the pane taken when it was entered, and scroll_position counts
+	# from that snapshot, while a plain capture-pane reads the live grid that keeps receiving
+	# output.  Capture the mode's screen (-M) so the capture is exactly what top-line/cursor-down
+	# will move through, no matter how much output arrived since.
 	capture_opts = []
-	if mode == 'copy-mode' and rdict['scroll_position'] != None and rdict['scroll_position'] > 0:
-		capture_opts += [ '-S', str(-rdict['scroll_position']), '-E', str(-rdict['scroll_position'] + rdict['pane_size'][1] - 1) ]
+	if mode == 'copy-mode':
+		sp = rdict['scroll_position'] or 0
+		capture_opts += [ '-M', '-S', str(-sp), '-E', str(-sp + rdict['pane_size'][1] - 1) ]
 	if capture:
 		# The "normal" pane capture includes "hard" newlines at line wraps and truncates trailing spaces
 		rdict['contents'] = capture_pane_contents(rdict['pane_id_full'], capture_opts)
@@ -352,9 +357,14 @@ def move_tmux_cursor(pos, target, gotocopy=True): # (x, y)
 	elif dx < 0:
 		runtmux([ 'send-keys', '-X', '-t', target, '-N', str(-dx), 'cursor-left' ])
 
+# Set once the cursor was moved in the copy mode the wrapper entered, so it's kept
+keep_copy_mode = False
+
 def cleanup_internal_process():
 	if swap_count % 2 == 1:
 		swap_hidden_pane()
+	if args.entered_copy_mode and not keep_copy_mode:
+		runtmux([ 'send-keys', '-X', '-t', args.t, 'cancel' ])
 	runtmux([ 'kill-window', '-t', args.hidden_window ])
 
 def gen_em_labels(n, chars=None, min_nchars=1, max_nchars=None):
@@ -913,8 +923,10 @@ class EasyMotionAction(PaneJumpAction):
 		
 		# If a location was found, move cursor there in original pane
 		if loc:
+			global keep_copy_mode
 			log('match location: ' + str(loc), time=True)
 			move_tmux_cursor((loc[0], loc[1]), self.orig_pane['pane_id'])
+			keep_copy_mode = True
 
 
 class EasyCopyAction(EasyMotionAction):
@@ -1326,6 +1338,13 @@ def run_quickopen(stdscr):
 def run_wrapper(main_action, args):
 	log('running wrapper', time=True)
 	pane = get_pane_info(args.t)
+	# Easymotion jumps by screen row in the original pane, which keeps receiving output while the
+	# labels are shown.  Freeze it in copy mode right away so the capture, the labels and the
+	# final jump all refer to the same view; cleanup leaves copy mode again if nothing was picked.
+	entered_copy_mode = False
+	if main_action.startswith('easymotion-') and pane['mode'] == '':
+		runtmux([ 'copy-mode', '-t', pane['pane_id'] ])
+		entered_copy_mode = True
 	# Wrap the inner utility in different ways depending on if the pane is zoomed or not.
 	# This is because tmux does funny thingy when swapping zoomed panes.
 	# When an ordinary pane, use 'pane-swap' mode.  In this case, the internal utility
@@ -1362,6 +1381,8 @@ def run_wrapper(main_action, args):
 		addopt('--search-direction', args.search_direction)
 	if args.paste:
 		addopt('--paste')
+	if entered_copy_mode:
+		addopt('--entered-copy-mode')
 
 	cmd += f' "{main_action}"'
 	#cmd += ' 2>/tmp/tm_wrap_log'
@@ -1385,6 +1406,7 @@ argp.add_argument('--hidden-t')
 argp.add_argument('--hidden-window')
 argp.add_argument('--orig-window')
 argp.add_argument('--swap-mode')
+argp.add_argument('--entered-copy-mode', action='store_true')
 
 argp.add_argument('action')
 args = argp.parse_args()
